@@ -1,0 +1,27 @@
+pattern;compte;sens;libelle;contrepartie
+salaire brut;641;debit;Salaires bruts;
+heures sup;641;debit;Heures supplémentaires;
+prime;641;debit;Primes;
+indemnite;641;debit;Indemnités;
+brut;641;debit;Salaires bruts;
+charges patronales;645;debit;Charges sociales patronales;431
+charges sociales patronales;645;debit;Charges sociales patronales;431
+urssaf patronale;645;debit;Cotisations Urssaf patronales;431
+mutuelle patronale;647;debit;Mutuelle patronale;437
+prevoyance patronale;647;debit;Prévoyance patronale;437
+prevoyance;647;debit;Prévoyance;437
+formation;647;debit;Formation professionnelle;437
+taxe apprentissage;647;debit;Taxe d'apprentissage;437
+net a payer;421;credit;Salaires nets à payer;
+net;421;credit;Salaires nets à payer;
+cotisations salariales;431;credit;Cotisations sociales salariales;
+cotisations patronales;431;credit;Cotisations sociales patronales;
+securite sociale;431;credit;Cotisations sécurité sociale;
+urssaf;431;credit;Cotisations Urssaf;
+cotisation;431;credit;Cotisations sociales;
+retraite;437;credit;Cotisations retraite;
+chomage;437;credit;Cotisations chômage;
+mutuelle salariale;437;credit;Mutuelle salariale;
+mutuelle;437;credit;Mutuelle;
+csg;437;credit;CSG-CRDS;
+crds;437;credit;CSG-CRDS;

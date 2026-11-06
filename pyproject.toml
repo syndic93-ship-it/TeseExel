@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paie2excel"
+version = "1.0.0"
+description = "Conversion d'états récapitulatifs mensuels de paie (PDF) en écritures comptables XLSX"
+requires-python = ">=3.10"
+dependencies = [
+    "pdfplumber>=0.11",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0", "reportlab>=4.0"]
+
+[project.scripts]
+paie2excel = "paie2excel.cli:main"
+
+[tool.setuptools]
+packages = ["paie2excel"]
