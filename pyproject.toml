@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "Conversion d'états récapitulatifs mensuels de paie (PDF) en écritures comptables XLSX"
 requires-python = ">=3.10"
 dependencies = [
-    "pdfplumber>=0.11",
+    "pypdf>=5.0",
     "openpyxl>=3.1",
 ]
 
