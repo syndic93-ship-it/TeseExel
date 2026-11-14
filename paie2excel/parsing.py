@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from dataclasses import dataclass, field
 
 MONTHS_FR = {
@@ -12,6 +13,13 @@ NUMBER_RE = re.compile(r"^-?\s?\d[\d\s.,]*\d$|^-?\s?\d$")
 RUBRIQUE_HEADERS = ("rubrique", "libellé", "libelle", "désignation", "designation", "nature")
 MONTANT_HEADERS = ("montant", "total", "euro", "€")
 SALARIE_HEADERS = ("salarié", "salarie", "nom", "matricule", "collaborateur")
+
+IGNORED_LABELS = (
+    "siret", "siren", "iban", "bic", "n°", "no ", "numero", "numéro",
+    "code", "adresse", "tél", "tel", "email", "e-mail", "page",
+    "total", "totaux", "sous-total", "sous total",
+    "période", "periode", "entreprise", "société", "societe", "mois", "année", "annee",
+)
 
 
 @dataclass
@@ -29,6 +37,8 @@ class PaieParsee:
     totaux_brut: float = 0.0
     totaux_cotisations: float = 0.0
     totaux_net: float = 0.0
+    totaux_exoneres: float = 0.0
+    totaux_prelevement: float = 0.0
 
 
 def parse_number(raw):
@@ -59,6 +69,11 @@ def parse_number(raw):
     except ValueError:
         return None
     return -value if negative else value
+
+
+def _fold(text):
+    text = unicodedata.normalize("NFKD", text.lower())
+    return "".join(c for c in text if not unicodedata.combining(c))
 
 
 def _parse_periode(text):
@@ -95,7 +110,14 @@ def _normalize(header):
     return header.strip().lower()
 
 
-def _parse_table(table, paie):
+def _est_ignore(rubrique):
+    low = rubrique.lower()
+    if "net" in low:
+        return "avant" in low
+    return any(token in low for token in IGNORED_LABELS)
+
+
+def _parse_table(table, paie, doc_has_parts=(False, False)):
     if not table:
         return
     header = [_normalize(cell) for cell in table[0]]
@@ -108,9 +130,7 @@ def _parse_table(table, paie):
                 continue
             montant = parse_number(row[montant_idx])
             rubrique = row[rubrique_idx].strip()
-            if montant is None or not rubrique:
-                continue
-            if rubrique.lower() in ("total", "totaux", "total général", "total general"):
+            if montant is None or not rubrique or _est_ignore(rubrique):
                 continue
             paie.lignes.append(LignePaie(rubrique=rubrique, montant=montant))
         return
@@ -127,7 +147,7 @@ def _parse_table(table, paie):
             if len(row) <= salarie_idx:
                 continue
             salarie = row[salarie_idx].strip()
-            if not salarie or salarie.lower() in ("total", "totaux"):
+            if not salarie or _est_ignore(salarie):
                 continue
             for idx, col_header in amount_columns:
                 if idx >= len(row):
@@ -138,35 +158,59 @@ def _parse_table(table, paie):
                 rubrique = col_header.capitalize() if col_header else "[MISSING_DATA]"
                 paie.lignes.append(LignePaie(rubrique=rubrique, montant=montant, salarie=salarie))
         return
+    header_low = " ".join(header)
+    has_employeur = "employeur" in header_low or doc_has_parts[0]
+    has_salariale = "salariale" in header_low or doc_has_parts[1]
     for row in table:
         numeric = [(i, parse_number(cell)) for i, cell in enumerate(row)]
         numeric = [(i, v) for i, v in numeric if v is not None]
-        if len(numeric) != 1:
+        if not numeric:
             continue
-        idx, montant = numeric[0]
-        rubrique = " ".join(cell for i, cell in enumerate(row[:idx]) if cell).strip()
-        if not rubrique or rubrique.lower() in ("total", "totaux"):
-            continue
-        paie.lignes.append(LignePaie(rubrique=rubrique, montant=montant))
+        if len(numeric) == 1:
+            idx, montant = numeric[0]
+            rubrique = " ".join(cell for i, cell in enumerate(row[:idx]) if cell).strip()
+            if not rubrique or _est_ignore(rubrique):
+                continue
+            paie.lignes.append(LignePaie(rubrique=rubrique, montant=montant))
+        elif len(numeric) >= 2 and has_employeur and has_salariale:
+            rubrique = " ".join(cell for i, cell in enumerate(row[:numeric[0][0]]) if cell).strip()
+            if not rubrique or _est_ignore(rubrique):
+                continue
+            paie.lignes.append(LignePaie(rubrique=f"{rubrique} (part employeur)", montant=numeric[0][1]))
+            paie.lignes.append(LignePaie(rubrique=f"{rubrique} (part salariale)", montant=numeric[-1][1]))
 
 
 def parse_paies(text, tables):
     paie = PaieParsee(periode=_parse_periode(text), entreprise=_parse_entreprise(text))
+    doc_low = _fold(text)
+    doc_has_parts = ("employeur" in doc_low, "salariale" in doc_low)
     for table in tables:
-        _parse_table(table, paie)
-    if not paie.lignes:
-        for line in text.splitlines():
-            parts = re.split(r"\s{2,}|\t", line.strip())
-            if len(parts) == 2:
-                montant = parse_number(parts[1])
-                if montant is not None and parts[0].strip():
-                    paie.lignes.append(LignePaie(rubrique=parts[0].strip(), montant=montant))
+        _parse_table(table, paie, doc_has_parts)
+    deja_vus = {(l.rubrique.lower(), l.montant) for l in paie.lignes}
+    for line in text.splitlines():
+        parts = line.split()
+        for k in (3, 2, 1):
+            if len(parts) <= k:
+                continue
+            montant = parse_number(" ".join(parts[-k:]))
+            rubrique = " ".join(parts[:-k]).strip()
+            if montant is None or not rubrique or _est_ignore(rubrique) or re.search(r"\d", rubrique):
+                continue
+            if (rubrique.lower(), montant) not in deja_vus:
+                paie.lignes.append(LignePaie(rubrique=rubrique, montant=montant))
+                deja_vus.add((rubrique.lower(), montant))
+            break
     for ligne in paie.lignes:
-        low = ligne.rubrique.lower()
-        if any(token in low for token in ("brut", "salaire", "heures sup", "prime", "indemnite")):
-            paie.totaux_brut += ligne.montant
-        if "cotisation" in low:
-            paie.totaux_cotisations += ligne.montant
+        low = _fold(ligne.rubrique)
         if "net" in low:
             paie.totaux_net += ligne.montant
+            continue
+        if any(token in low for token in ("brut", "salaire", "heures sup", "prime", "indemnite")):
+            paie.totaux_brut += ligne.montant
+        if "cotisation" in low or "part salariale" in low:
+            paie.totaux_cotisations += ligne.montant
+        if "transport" in low:
+            paie.totaux_exoneres += ligne.montant
+        if "prelevement" in low or "impot" in low:
+            paie.totaux_prelevement += ligne.montant
     return paie

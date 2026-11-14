@@ -1,6 +1,7 @@
+import re
 from pathlib import Path
 
-import pdfplumber
+from pypdf import PdfReader
 
 PAYROLL_KEYWORDS = (
     "état récapitulatif",
@@ -16,25 +17,32 @@ PAYROLL_KEYWORDS = (
 REQUIRED_COLUMNS = ("brut", "cotisation", "net")
 
 
+def _page_text(page):
+    try:
+        return page.extract_text(extraction_mode="layout") or ""
+    except TypeError:
+        return page.extract_text() or ""
+
+
 def extract_text(pdf_path):
-    path = Path(pdf_path)
-    with pdfplumber.open(path) as pdf:
-        return "\n".join((page.extract_text() or "") for page in pdf.pages)
+    reader = PdfReader(str(Path(pdf_path)))
+    return "\n".join(_page_text(page) for page in reader.pages)
 
 
 def extract_tables(pdf_path):
-    path = Path(pdf_path)
+    reader = PdfReader(str(Path(pdf_path)))
     tables = []
-    with pdfplumber.open(path) as pdf:
-        for page in pdf.pages:
-            for table in page.extract_tables():
-                cleaned = [
-                    [" ".join(str(cell or "").split()) for cell in row]
-                    for row in table
-                    if any(str(cell or "").strip() for cell in row)
-                ]
-                if cleaned:
-                    tables.append(cleaned)
+    current = []
+    for page in reader.pages:
+        for line in _page_text(page).splitlines():
+            cells = [cell.strip() for cell in re.split(r"\s{2,}", line.strip()) if cell.strip()]
+            if len(cells) >= 2:
+                current.append(cells)
+            elif current:
+                tables.append(current)
+                current = []
+    if current:
+        tables.append(current)
     return tables
 
 

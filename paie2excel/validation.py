@@ -14,10 +14,13 @@ def valider(ecritures, paie=None):
         if e.compte.startswith("[") and e.compte.endswith("]"):
             anomalies.append(f"Compte non renseigné pour la ligne '{e.libelle}' ({e.compte}).")
     if paie is not None and paie.totaux_brut and paie.totaux_net:
-        attendu = round(paie.totaux_brut - paie.totaux_cotisations, 2)
+        attendu = round(
+            paie.totaux_brut + paie.totaux_exoneres
+            - paie.totaux_cotisations - paie.totaux_prelevement, 2,
+        )
         if abs(paie.totaux_net - attendu) > TOLERANCE:
             anomalies.append(
                 f"Incohérence : net à payer={paie.totaux_net:.2f} mais "
-                f"brut - cotisations={attendu:.2f}."
+                f"brut + exonérés - cotisations - prélèvement={attendu:.2f}."
             )
     return anomalies, total_debit, total_credit

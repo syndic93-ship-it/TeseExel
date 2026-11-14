@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from dataclasses import dataclass
 
-from paie2excel.mapping import COMPTE_NON_MAPPE, map_rubrique
+from paie2excel.mapping import COMPTE_NON_MAPPE, MappingResult, map_rubrique
 
 COMPTE_TROP_PERCU = "421"
 
@@ -52,7 +52,25 @@ def generer_ecritures(paie, rules, date_str=None, reference="", par_salarie=Fals
     ecritures = []
     hypotheses = []
     for ligne in paie.lignes:
-        result = map_rubrique(ligne.rubrique, rules)
+        low = ligne.rubrique.lower()
+        folded = " ".join(low.split())
+        if low.endswith("(part employeur)"):
+            result = MappingResult(
+                compte="645", sens="debit", libelle="Charges sociales patronales",
+                pattern="part employeur", contrepartie="431",
+            )
+        elif low.endswith("(part salariale)"):
+            result = MappingResult(
+                compte="431", sens="credit", libelle="Cotisations salariales",
+                pattern="part salariale",
+            )
+        elif "net" in folded and "avant" not in folded:
+            result = MappingResult(
+                compte="421", sens="credit", libelle="Salaires nets à payer",
+                pattern="net",
+            )
+        else:
+            result = map_rubrique(ligne.rubrique, rules)
         if result.ambigu:
             hypotheses.append(
                 f"Rubrique ambiguë '{ligne.rubrique}' : plusieurs comptes possibles, "

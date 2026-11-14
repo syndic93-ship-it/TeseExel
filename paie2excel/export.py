@@ -43,11 +43,12 @@ def write_xlsx(ecritures, recap, path, totaux=None):
         credit_cell.number_format = MONTANT_FORMAT
         sheet.cell(row=row_index, column=6, value=e.reference)
         sheet.cell(row=row_index, column=7, value=e.salarie or None)
+    last_row = len(ecritures) + 1
     if totaux:
-        total_row = len(ecritures) + 2
+        total_row = last_row + 1
         sheet.cell(row=total_row, column=3, value="TOTAL").font = Font(bold=True)
-        debit_cell = sheet.cell(row=total_row, column=4, value=totaux[0])
-        credit_cell = sheet.cell(row=total_row, column=5, value=totaux[1])
+        debit_cell = sheet.cell(row=total_row, column=4, value=f"=SUM(D2:D{last_row})")
+        credit_cell = sheet.cell(row=total_row, column=5, value=f"=SUM(E2:E{last_row})")
         debit_cell.number_format = MONTANT_FORMAT
         credit_cell.number_format = MONTANT_FORMAT
         debit_cell.font = Font(bold=True)
@@ -59,15 +60,22 @@ def write_xlsx(ecritures, recap, path, totaux=None):
     for row_index, item in enumerate(recap, start=2):
         recap_sheet.cell(row=row_index, column=1, value=item["compte"])
         recap_sheet.cell(row=row_index, column=2, value=item["libelle"])
-        debit_cell = recap_sheet.cell(row=row_index, column=3, value=item["debit"] or None)
-        credit_cell = recap_sheet.cell(row=row_index, column=4, value=item["credit"] or None)
+        debit_cell = recap_sheet.cell(
+            row=row_index, column=3,
+            value=f"=SUMIF('Écritures'!$B$2:$B${last_row},$A{row_index},'Écritures'!$D$2:$D${last_row})",
+        )
+        credit_cell = recap_sheet.cell(
+            row=row_index, column=4,
+            value=f"=SUMIF('Écritures'!$B$2:$B${last_row},$A{row_index},'Écritures'!$E$2:$E${last_row})",
+        )
         debit_cell.number_format = MONTANT_FORMAT
         credit_cell.number_format = MONTANT_FORMAT
     if totaux:
-        total_row = len(recap) + 2
+        last_recap_row = len(recap) + 1
+        total_row = last_recap_row + 1
         recap_sheet.cell(row=total_row, column=2, value="TOTAL").font = Font(bold=True)
-        debit_cell = recap_sheet.cell(row=total_row, column=3, value=totaux[0])
-        credit_cell = recap_sheet.cell(row=total_row, column=4, value=totaux[1])
+        debit_cell = recap_sheet.cell(row=total_row, column=3, value=f"=SUM(C2:C{last_recap_row})")
+        credit_cell = recap_sheet.cell(row=total_row, column=4, value=f"=SUM(D2:D{last_recap_row})")
         debit_cell.number_format = MONTANT_FORMAT
         credit_cell.number_format = MONTANT_FORMAT
         debit_cell.font = Font(bold=True)

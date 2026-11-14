@@ -21,7 +21,8 @@ class MappingResult:
 
 def _normalize(text):
     text = unicodedata.normalize("NFKD", text.lower())
-    return re.sub(r"[^a-z0-9 ]", " ", text).strip()
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
 
 def load_mapping(path=None):
